@@ -1,0 +1,80 @@
+apply plugin: 'java'
+apply plugin: 'maven'
+
+group = 'net.lisd.lunchseat_server'
+version = '1.0'
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+        resources {
+            srcDirs = ['resources']
+        }
+    }
+}
+
+repositories {
+    jcenter()
+}
+
+// Simple hack for provided dependencies
+configurations {
+    provided
+    compile.extendsFrom provided
+}
+
+dependencies {
+    compile group: 'org.java-websocket', name: 'Java-WebSocket', version:'1.3.0'
+    compile 'org.fusesource.jansi:jansi:1.13'
+}
+
+// Simple hack for provided dependencies
+jar {
+
+    manifest {
+        attributes(
+                'Class-Path': configurations.compile.collect { it.getName() }.join(' '),
+                'Main-Class': 'net.lisd.lunchseat_server.Main',
+                'Implementation-Title': 'LunchSeat',
+                'Implementation-Version': version,
+        )
+    }
+
+    dependsOn configurations.runtime
+    // Zip all dependencies
+    from {
+        (configurations.runtime - configurations.provided).collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
+    } {
+        // Exclude certificates
+        exclude "META-INF/*.SF"
+        exclude "META-INF/*.DSA"
+        exclude "META-INF/*.RSA"
+    }
+}
+
+// Add debugging information
+task createBuildInfoFile(dependsOn: processResources) {
+    doLast {
+        def buildInfoFile = new File("$buildDir/resources/info.properties")
+        Properties props = new Properties()
+        if (System.getenv().containsKey("IS_RELEASE")) {
+            props.setProperty('debug', 'false')
+        } else {
+            props.setProperty('debug', 'true')
+        }
+        props.setProperty('commit', org.ajoberstar.grgit.Grgit.open(file('.')).head().abbreviatedId)
+        props.setProperty('version', project.version)
+        props.store(buildInfoFile.newWriter(), null)
+    }
+}
+
+classes {
+    dependsOn createBuildInfoFile
+}
